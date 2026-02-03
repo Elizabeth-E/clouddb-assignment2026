@@ -1,0 +1,14 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+
+    "BlobConnection": "UseDevelopmentStorage=true",
+
+    "SqlConnection": "Server=localhost,1433;Database=BuyMyHouseDb;User ID=sa;Password=YourStrong(!)Password123;TrustServerCertificate=True;",
+
+    "OfferEmailQueue": "offer-email",
+    "OfferDocumentsContainer": "mortgage-offers"
+  }
+}

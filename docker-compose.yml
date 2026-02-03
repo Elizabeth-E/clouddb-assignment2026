@@ -1,0 +1,78 @@
+services:
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    container_name: buy-my-house-azurite
+    command: "azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck"
+    environment:
+      - AZURITE_ACCOUNTS=devstoreaccount1:Eby8vdM02xNoGFp6m2I/3Nn3CkE7q8m0G6C+4xTQmG2jVv8aWl6Ue2DYON2SIgMZk1G8h8C8bL8aS7WqZbFj7Q==
+    ports:
+      - "10000:10000" # blob
+      - "10001:10001" # queue
+      - "10002:10002" # table
+    volumes:
+      - azurite_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:10000/devstoreaccount1?comp=list >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: buy-my-house-sql
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_PID=Developer
+      - MSSQL_SA_PASSWORD=YourStrong(!)Password123
+    ports:
+      - "1433:1433"
+    volumes:
+      - sql_data:/var/opt/mssql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bash", "-c", "timeout 1 bash -c '</dev/tcp/localhost/1433'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  sqlpad:
+    image: sqlpad/sqlpad:latest
+    container_name: buy-my-house-sqlpad
+    ports:
+      - "3000:3000"
+    environment:
+      - SQLPAD_ADMIN=admin@local
+      - SQLPAD_ADMIN_PASSWORD=admin123
+      - SQLPAD_APP_LOG_LEVEL=info
+    depends_on:
+      - sql
+    restart: unless-stopped
+
+  functions:
+    build:
+      context: .
+      dockerfile: Functions/Dockerfile
+    container_name: buy-my-house-functions
+    ports:
+      - "7071:80"
+    environment:
+      FUNCTIONS_WORKER_RUNTIME: dotnet-isolated
+      AzureWebJobsScriptRoot: /home/site/wwwroot
+      AzureFunctionsJobHost__Logging__Console__IsEnabled: "true"
+      AzureWebJobsStorage: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNoGFp6m2I/3Nn3CkE7q8m0G6C+4xTQmG2jVv8aWl6Ue2DYON2SIgMZk1G8h8C8bL8aS7WqZbFj7Q==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;"
+      BlobConnection: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNoGFp6m2I/3Nn3CkE7q8m0G6C+4xTQmG2jVv8aWl6Ue2DYON2SIgMZk1G8h8C8bL8aS7WqZbFj7Q==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;"
+      SqlConnection: "Server=sql,1433;Database=BuyMyHouseDb;User ID=sa;Password=YourStrong(!)Password123;TrustServerCertificate=True;"
+      OfferEmailQueue: "offer-email"
+      OfferDocumentsContainer: "mortgage-offers"
+    depends_on:
+      - azurite
+      - sql
+    restart: unless-stopped
+
+volumes:
+  azurite_data:
+  sql_data:
